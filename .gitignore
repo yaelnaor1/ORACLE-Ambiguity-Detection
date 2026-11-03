@@ -1,0 +1,33 @@
+# Environment & secrets
+.env
+*.env
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.claude/
+
+# Results backup
+evaluation/results.csv.bak
+evaluation/human_eval/
+
+# Local report sources (kept out of the repo)
+docs/report.tex
+
+# Dataset cache (downloaded automatically)
+data/ambig_qa.csv
+~/.cache/huggingface/
+
+# BERTScore model cache
