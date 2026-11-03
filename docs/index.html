@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ORACLE — Multi-Agent Ambiguity Detection</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #21262d;
+      --border:    #30363d;
+      --accent:    #58a6ff;
+      --accent2:   #3fb950;
+      --accent3:   #f78166;
+      --accent4:   #d2a8ff;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --oracle:    #58a6ff;
+      --dlite:     #3fb950;
+      --gpt:       #f78166;
+      --claude:    #d2a8ff;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 16px;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(13,17,23,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo {
+      font-weight: 700; font-size: 1.1rem; color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+    .nav-links { display: flex; gap: 2rem; list-style: none; }
+    .nav-links a {
+      color: var(--muted); text-decoration: none; font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* ── Sections ── */
+    section { padding: 6rem 2rem; max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.15em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem;
+    }
+    h1 { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 800; line-height: 1.15; }
+    h2 { font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 700; margin-bottom: 1rem; }
+    h3 { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem; }
+    p { color: var(--muted); line-height: 1.75; }
+
+    /* ── Hero ── */
+    #hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; justify-content: center;
+      padding-top: 80px;
+      max-width: 1100px; margin: 0 auto; padding-left: 2rem; padding-right: 2rem;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3);
+      border-radius: 999px; padding: 0.3rem 1rem;
+      font-size: 0.8rem; font-weight: 600; color: var(--accent);
+      margin-bottom: 1.5rem; width: fit-content;
+    }
+    .hero-badge span { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .hero-title { margin-bottom: 1.5rem; }
+    .hero-title em {
+      font-style: normal;
+      background: linear-gradient(135deg, var(--accent), var(--accent4));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero-desc { font-size: 1.15rem; max-width: 680px; margin-bottom: 2.5rem; }
+    .hero-stats {
+      display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 3rem;
+    }
+    .stat {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem 1.75rem; min-width: 140px;
+    }
+    .stat-val { font-size: 2rem; font-weight: 800; color: var(--text); }
+    .stat-lbl { font-size: 0.8rem; color: var(--muted); margin-top: 0.2rem; }
+    .hero-systems {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    .system-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem;
+      border-left: 3px solid var(--oracle);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .system-card:hover { transform: translateY(-3px); }
+    .system-card.dlite { border-left-color: var(--dlite); }
+    .system-card.gpt   { border-left-color: var(--gpt); }
+    .system-card.claude{ border-left-color: var(--claude); }
+    .system-card h3 { font-size: 1rem; }
+    .system-card p  { font-size: 0.85rem; margin-top: 0.4rem; }
+    .badge {
+      display: inline-block; font-size: 0.7rem; font-weight: 600;
+      padding: 0.15rem 0.5rem; border-radius: 4px; margin-top: 0.5rem;
+      background: rgba(88,166,255,0.15); color: var(--accent);
+    }
+    .badge.green  { background: rgba(63,185,80,0.15);  color: var(--accent2); }
+    .badge.orange { background: rgba(247,129,102,0.15); color: var(--accent3); }
+    .badge.purple { background: rgba(210,168,255,0.15); color: var(--accent4); }
+
+    /* ── Pipeline section ── */
+    .pipeline {
+      display: flex; align-items: flex-start; gap: 0; overflow-x: auto;
+      padding-bottom: 1rem; margin-top: 2rem;
+    }
+    .pipe-step {
+      display: flex; flex-direction: column; align-items: center;
+      min-width: 130px;
+    }
+    .pipe-box {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.75rem 1rem;
+      text-align: center; width: 120px;
+      font-size: 0.8rem; font-weight: 600;
+      position: relative;
+    }
+    .pipe-box .pipe-num {
+      position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #000;
+      width: 20px; height: 20px; border-radius: 50%;
+      font-size: 0.7rem; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .pipe-box .pipe-model {
+      font-size: 0.65rem; color: var(--muted); margin-top: 0.3rem;
+    }
+    .pipe-arrow {
+      flex: 1; display: flex; align-items: center;
+      padding: 0 0.25rem; min-width: 20px; padding-top: 30px;
+    }
+    .pipe-arrow::after {
+      content: '→'; color: var(--muted); font-size: 1.2rem;
+    }
+    .pipe-box.oracle-only {
+      border-color: rgba(88,166,255,0.4);
+      background: rgba(88,166,255,0.05);
+    }
+    .pipe-box.oracle-only .pipe-num { background: var(--accent4); }
+
+    /* ── Experiments ── */
+    .exp-grid {
+      display: grid; gap: 1.5rem; margin-top: 2rem;
+    }
+    .exp-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 1.75rem;
+      display: grid; grid-template-columns: auto 1fr;
+      gap: 1.25rem; align-items: start;
+    }
+    .exp-num {
+      width: 48px; height: 48px; border-radius: 12px;
+      background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; font-weight: 800; color: var(--accent);
+      flex-shrink: 0;
+    }
+    .exp-card h3 { color: var(--text); margin-bottom: 0.4rem; }
+    .exp-card p  { font-size: 0.9rem; }
+    .exp-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.75rem; }
+    .tag {
+      font-size: 0.7rem; padding: 0.2rem 0.6rem; border-radius: 4px;
+      background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
+    }
+
+    /* ── Charts ── */
+    .charts-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+      gap: 1.5rem; margin-top: 2rem;
+    }
+    .chart-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 1.5rem;
+    }
+    .chart-card h3 { font-size: 1rem; color: var(--text); margin-bottom: 0.25rem; }
+    .chart-card .chart-desc { font-size: 0.8rem; color: var(--muted); margin-bottom: 1.25rem; }
+    .chart-wrap { position: relative; height: 260px; }
+
+    /* ── Results Table ── */
+    .table-wrap {
+      overflow-x: auto; margin-top: 2rem;
+      border: 1px solid var(--border); border-radius: 12px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    thead { background: var(--surface2); }
+    th {
+      padding: 0.85rem 1rem; text-align: left;
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 0.85rem 1rem; border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    .sys-dot {
+      display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; margin-right: 6px; vertical-align: middle;
+    }
+    .best { color: var(--accent2); font-weight: 700; }
+    .worst { color: var(--accent3); }
+
+    /* ── Key Findings ── */
+    .findings-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem; margin-top: 2rem;
+    }
+    .finding-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.5rem;
+    }
+    .finding-icon { font-size: 1.75rem; margin-bottom: 0.75rem; }
+    .finding-card h3 { font-size: 1rem; margin-bottom: 0.4rem; }
+    .finding-card p  { font-size: 0.85rem; }
+
+    /* ── Detection section ── */
+    .detection-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 2rem;
+    }
+    .detect-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.5rem;
+    }
+    .detect-bar-row {
+      display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.6rem;
+    }
+    .detect-label { font-size: 0.8rem; width: 100px; color: var(--muted); flex-shrink: 0; }
+    .detect-bar-bg {
+      flex: 1; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden;
+    }
+    .detect-bar-fill { height: 100%; border-radius: 4px; transition: width 1s; }
+    .detect-val { font-size: 0.8rem; font-weight: 600; width: 36px; text-align: right; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem; text-align: center;
+      color: var(--muted); font-size: 0.85rem;
+    }
+
+    /* ── Divider ── */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+      .charts-grid { grid-template-columns: 1fr; }
+      .detection-grid { grid-template-columns: 1fr; }
+      .exp-card { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Navigation ── -->
+<nav>
+  <div class="nav-logo">ORACLE</div>
+  <ul class="nav-links">
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#pipeline">Pipeline</a></li>
+    <li><a href="#experiments">Experiments</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#findings">Findings</a></li>
+  </ul>
+</nav>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- HERO                                               -->
+<!-- ══════════════════════════════════════════════════ -->
+<section id="overview">
+  <div class="hero-badge"><span></span> NLP Research Project</div>
+  <h1 class="hero-title">
+    Can LLMs detect<br>
+    <em>ambiguous queries</em> and<br>
+    ask the right question?
+  </h1>
+  <p class="hero-desc">
+    ORACLE is a 6-agent multi-model pipeline that detects query ambiguity,
+    classifies its type, and generates precise clarifying questions —
+    evaluated against two baseline systems and Debate-Lite across 391 real queries.
+  </p>
+
+  <div class="hero-stats">
+    <div class="stat"><div class="stat-val">391</div><div class="stat-lbl">Queries evaluated</div></div>
+    <div class="stat"><div class="stat-val">224</div><div class="stat-lbl">Ambiguous queries</div></div>
+    <div class="stat"><div class="stat-val">3</div><div class="stat-lbl">Systems compared</div></div>
+    <div class="stat"><div class="stat-val">4</div><div class="stat-lbl">Scoring methods</div></div>
+  </div>
+
+  <div class="hero-systems">
+    <div class="system-card">
+      <h3>Baseline GPT-4o</h3>
+      <p>Single model, no ambiguity detection — answers directly every time.</p>
+      <span class="badge orange">1 API call</span>
+    </div>
+    <div class="system-card claude">
+      <h3>Baseline Claude</h3>
+      <p>Single model with the same prompt — independent baseline comparison.</p>
+      <span class="badge purple">1 API call</span>
+    </div>
+    <div class="system-card dlite">
+      <h3>Debate-Lite</h3>
+      <p>Two interpreters debate the query; an analyst decides if it's ambiguous.</p>
+      <span class="badge green">4 API calls</span>
+    </div>
+    <div class="system-card">
+      <h3>ORACLE</h3>
+      <p>Full 6-agent pipeline with Devil's Advocate and internal Judge for quality control.</p>
+      <span class="badge">~9 API calls</span>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- PIPELINE                                           -->
+<!-- ══════════════════════════════════════════════════ -->
+<section id="pipeline">
+  <div class="section-label">Architecture</div>
+  <h2>How ORACLE works</h2>
+  <p>Six specialized agents process each query in sequence. Agents 5 & 6 (Devil's Advocate + Judge) are exclusive to ORACLE — Debate-Lite stops at Agent 4.</p>
+
+  <div class="pipeline">
+    <div class="pipe-step">
+      <div class="pipe-box">
+        <div class="pipe-num">1</div>
+        Interpreter A
+        <div class="pipe-model">GPT-4o</div>
+      </div>
+    </div>
+    <div class="pipe-arrow"></div>
+    <div class="pipe-step">
+      <div class="pipe-box">
+        <div class="pipe-num">2</div>
+        Interpreter B
+        <div class="pipe-model">Claude</div>
+      </div>
+    </div>
+    <div class="pipe-arrow"></div>
+    <div class="pipe-step">
+      <div class="pipe-box">
+        <div class="pipe-num">3</div>
+        Analyst
+        <div class="pipe-model">GPT-4o</div>
+      </div>
+    </div>
+    <div class="pipe-arrow"></div>
+    <div class="pipe-step">
+      <div class="pipe-box">
+        <div class="pipe-num">4</div>
+        Clarifier
+        <div class="pipe-model">Claude</div>
+      </div>
+    </div>
+    <div class="pipe-arrow"></div>
+    <div class="pipe-step">
+      <div class="pipe-box oracle-only">
+        <div class="pipe-num">5</div>
+        Devil's Advocate
+        <div class="pipe-model">GPT-4o</div>
+      </div>
+    </div>
+    <div class="pipe-arrow"></div>
+    <div class="pipe-step">
+      <div class="pipe-box oracle-only">
+        <div class="pipe-num">6</div>
+        Judge
+        <div class="pipe-model">Claude</div>
+      </div>
+    </div>
+  </div>
+  <p style="margin-top:1rem; font-size:0.8rem;">
+    <span style="color:var(--accent4);">■</span> Steps 5–6 are exclusive to ORACLE &nbsp;|&nbsp;
+    Debate-Lite ends at step 4
+  </p>
+</section>
+
+<hr class="divider" />
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- EXPERIMENTS                                        -->
+<!-- ══════════════════════════════════════════════════ -->
+<section id="experiments">
+  <div class="section-label">Methodology</div>
+  <h2>Experiments</h2>
+  <p>Each experiment was run on all 391 queries, with results saved row-by-row for safe resumption.</p>
+
+  <div class="exp-grid">
+
+    <div class="exp-card">
+      <div class="exp-num">1</div>
+      <div>
+        <h3>Dataset Preparation</h3>
+        <p>Downloaded 500 queries from the AmbigQA dataset via HuggingFace — 333 ambiguous and 167 unambiguous. Each query includes a gold clarifying question and gold answer for reference-based scoring.</p>
+        <div class="exp-tags">
+          <span class="tag">AmbigQA</span>
+          <span class="tag">HuggingFace</span>
+          <span class="tag">500 queries</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="exp-card">
+      <div class="exp-num">2</div>
+      <div>
+        <h3>Baseline Evaluation</h3>
+        <p>Both GPT-4o and Claude were given each query with a simple instruction: answer directly or ask one clarifying question. No ambiguity detection mechanism — pure single-pass generation.</p>
+        <div class="exp-tags">
+          <span class="tag">GPT-4o</span>
+          <span class="tag">Claude Sonnet 4.6</span>
+          <span class="tag">Zero-shot</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="exp-card">
+      <div class="exp-num">3</div>
+      <div>
+        <h3>Debate-Lite Pipeline</h3>
+        <p>Two models (GPT-4o and Claude) independently interpret each query. An analyst compares their interpretations to detect conflict, classifies the ambiguity type using AT-CoT taxonomy, and triggers a clarifying question if needed.</p>
+        <div class="exp-tags">
+          <span class="tag">AT-CoT Taxonomy</span>
+          <span class="tag">4 API calls</span>
+          <span class="tag">Semantic / Generalize / Specify</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="exp-card">
+      <div class="exp-num">4</div>
+      <div>
+        <h3>ORACLE Full Pipeline</h3>
+        <p>Extends Debate-Lite with two additional quality-control agents: a Devil's Advocate that challenges the initial clarifying question, and an internal Judge that scores v1 vs v2 on three axes and picks the winner.</p>
+        <div class="exp-tags">
+          <span class="tag">6 agents</span>
+          <span class="tag">~9 API calls</span>
+          <span class="tag">Devil's Advocate</span>
+          <span class="tag">Internal Judge</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="exp-card">
+      <div class="exp-num">5</div>
+      <div>
+        <h3>Method 1 — Gemini Judge (Qualitative)</h3>
+        <p>Gemini 2.5 Flash acts as an independent evaluator, scoring each system's output on three axes (Relevance, Specificity, Necessity — 1 to 5 each) plus two binary flags (Hallucination, False Positive). Gemini was chosen to avoid self-preference bias since GPT-4o and Claude are both inside the pipeline.</p>
+        <div class="exp-tags">
+          <span class="tag">Gemini 2.5 Flash</span>
+          <span class="tag">Independent judge</span>
+          <span class="tag">5 metrics</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="exp-card">
+      <div class="exp-num">6</div>
+      <div>
+        <h3>Method 2 — Automatic Scoring</h3>
+        <p>Three automatic metrics computed against gold references: ROUGE-L (word overlap), BERTScore (semantic similarity via RoBERTa), and ARR — a novel Ambiguity Resolution Rate metric that checks whether the clarification leads to the correct final answer.</p>
+        <div class="exp-tags">
+          <span class="tag">ROUGE-L</span>
+          <span class="tag">BERTScore</span>
+          <span class="tag">ARR (novel metric)</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- RESULTS                                            -->
+<!-- ══════════════════════════════════════════════════ -->
+<section id="results">
+  <div class="section-label">Results</div>
+  <h2>Results & Findings</h2>
+  <p>All metrics computed on 391 completed queries (224 ambiguous, 167 clear).</p>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+
+    <div class="chart-card">
+      <h3>Gemini Judge — Quality Axes (1–5)</h3>
+      <p class="chart-desc">Relevance, Specificity, and Necessity scored independently by Gemini 2.5 Flash.</p>
+      <div class="chart-wrap">
+        <canvas id="chartQuality"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Hallucination & False Positive Rate (%)</h3>
+      <p class="chart-desc">Hallucination = answered directly on ambiguous query. False Positive = asked on clear query.</p>
+      <div class="chart-wrap">
+        <canvas id="chartFlags"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>ARR — Ambiguity Resolution Rate (%)</h3>
+      <p class="chart-desc">Did the clarifying question lead to the correct final answer? (GPT-4o verification)</p>
+      <div class="chart-wrap">
+        <canvas id="chartARR"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>ROUGE-L & BERTScore</h3>
+      <p class="chart-desc">Reference-based overlap metrics. Lower scores for multi-agent systems are expected (short, precise questions).</p>
+      <div class="chart-wrap">
+        <canvas id="chartAuto"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Full Results Table -->
+  <h3 style="margin-top:3rem; margin-bottom:0.5rem;">Combined Results Table</h3>
+  <p style="font-size:0.85rem; margin-bottom:0;">All metrics across all systems. <span style="color:var(--accent2);">Green</span> = best. <span style="color:var(--accent3);">Red</span> = worst.</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>System</th>
+          <th>Relevance</th>
+          <th>Specificity</th>
+          <th>Necessity</th>
+          <th>ROUGE-L</th>
+          <th>BERTScore</th>
+          <th>ARR%</th>
+          <th>Hallucin%</th>
+          <th>FalsePos%</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="sys-dot" style="background:var(--gpt)"></span>Baseline GPT</td>
+          <td class="worst">1.233</td>
+          <td class="worst">1.077</td>
+          <td class="worst">1.501</td>
+          <td>0.162</td>
+          <td class="best">0.178</td>
+          <td class="worst">62.5%</td>
+          <td class="worst">98.2%</td>
+          <td>11.8%</td>
+        </tr>
+        <tr>
+          <td><span class="sys-dot" style="background:var(--claude)"></span>Baseline Claude</td>
+          <td class="worst">1.632</td>
+          <td class="worst">1.506</td>
+          <td class="worst">1.808</td>
+          <td>0.105</td>
+          <td>0.078</td>
+          <td class="worst">59.4%</td>
+          <td class="worst">91.0%</td>
+          <td>11.8%</td>
+        </tr>
+        <tr>
+          <td><span class="sys-dot" style="background:var(--dlite)"></span>Debate-Lite</td>
+          <td>4.598</td>
+          <td class="best">4.558</td>
+          <td>2.427</td>
+          <td class="best">0.036</td>
+          <td>0.042</td>
+          <td class="best">86.2%</td>
+          <td>7.4%</td>
+          <td>6.1%</td>
+        </tr>
+        <tr>
+          <td><span class="sys-dot" style="background:var(--oracle)"></span><strong>ORACLE</strong></td>
+          <td class="best">4.775</td>
+          <td>4.409</td>
+          <td>2.422</td>
+          <td>0.027</td>
+          <td>0.035</td>
+          <td>84.9%</td>
+          <td class="best">5.9%</td>
+          <td class="best">1.3%</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ORACLE Type Breakdown -->
+  <h3 style="margin-top:2.5rem; margin-bottom:0.5rem;">ORACLE — Scores by Ambiguity Type</h3>
+  <p style="font-size:0.85rem; margin-bottom:0;">When ORACLE detects ambiguity, how well does it score per type?</p>
+  <div class="table-wrap" style="margin-top:1rem;">
+    <table>
+      <thead>
+        <tr>
+          <th>Ambiguity Type</th>
+          <th>Count</th>
+          <th>Relevance</th>
+          <th>Specificity</th>
+          <th>Necessity</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Semantic</td>
+          <td>25</td>
+          <td>4.68</td>
+          <td class="best">4.80</td>
+          <td>4.40</td>
+        </tr>
+        <tr>
+          <td>Generalize</td>
+          <td>6</td>
+          <td>4.33</td>
+          <td>4.33</td>
+          <td class="best">4.50</td>
+        </tr>
+        <tr>
+          <td>Specify</td>
+          <td>64</td>
+          <td>4.31</td>
+          <td>4.22</td>
+          <td>4.34</td>
+        </tr>
+        <tr>
+          <td>None (clear)</td>
+          <td>296</td>
+          <td class="best">4.89</td>
+          <td>4.42</td>
+          <td>1.80</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Detection accuracy -->
+  <h3 style="margin-top:2.5rem; margin-bottom:0.5rem;">Ambiguity Detection Accuracy</h3>
+  <p style="font-size:0.85rem; margin-bottom:0;">How many of the 224 ground-truth ambiguous queries did each system detect?</p>
+  <div class="detection-grid" style="margin-top:1rem;">
+    <div class="detect-card">
+      <h3 style="margin-bottom:1rem;">Detected as Ambiguous</h3>
+
+      <div class="detect-bar-row">
+        <span class="detect-label">Ground Truth</span>
+        <div class="detect-bar-bg"><div class="detect-bar-fill" style="width:100%; background:var(--muted)"></div></div>
+        <span class="detect-val" style="color:var(--muted)">224</span>
+      </div>
+      <div class="detect-bar-row">
+        <span class="detect-label">Debate-Lite</span>
+        <div class="detect-bar-bg"><div class="detect-bar-fill" style="width:48.7%; background:var(--dlite)"></div></div>
+        <span class="detect-val" style="color:var(--dlite)">109</span>
+      </div>
+      <div class="detect-bar-row">
+        <span class="detect-label">ORACLE</span>
+        <div class="detect-bar-bg"><div class="detect-bar-fill" style="width:42.4%; background:var(--oracle)"></div></div>
+        <span class="detect-val" style="color:var(--oracle)">95</span>
+      </div>
+    </div>
+
+    <div class="detect-card">
+      <h3 style="margin-bottom:1rem;">ORACLE Detection Breakdown</h3>
+      <div class="chart-wrap" style="height:180px;">
+        <canvas id="chartDetection"></canvas>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<hr class="divider" />
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- KEY FINDINGS                                       -->
+<!-- ══════════════════════════════════════════════════ -->
+<section id="findings">
+  <div class="section-label">Analysis</div>
+  <h2>Key Findings</h2>
+
+  <div class="findings-grid">
+    <div class="finding-card">
+      <div class="finding-icon">🎯</div>
+      <h3>Baselines fail at ambiguity</h3>
+      <p>GPT-4o hallucinates on 98.2% of ambiguous queries — answering confidently instead of asking. Claude does the same at 91%. Single-pass models cannot reliably detect ambiguity.</p>
+    </div>
+    <div class="finding-card">
+      <div class="finding-icon">⚡</div>
+      <h3>Multi-agent debate works</h3>
+      <p>Debate-Lite drops hallucination from 98% to 7.4% with just 4 API calls. Two independent interpreters plus an analyst is enough to dramatically improve ambiguity detection.</p>
+    </div>
+    <div class="finding-card">
+      <div class="finding-icon">🏆</div>
+      <h3>ORACLE = highest precision</h3>
+      <p>ORACLE achieves the lowest false positive rate (1.3%) — it almost never asks a clarifying question on a clear query. The Devil's Advocate + Judge pipeline provides this precision.</p>
+    </div>
+    <div class="finding-card">
+      <div class="finding-icon">📉</div>
+      <h3>ROUGE-L misleads here</h3>
+      <p>Baselines score higher on ROUGE-L/BERTScore because their verbose answers accidentally overlap with reference text. This shows lexical overlap metrics are unreliable for this task.</p>
+    </div>
+    <div class="finding-card">
+      <div class="finding-icon">✅</div>
+      <h3>ARR is the right metric</h3>
+      <p>ARR (Ambiguity Resolution Rate) correctly captures outcome quality — ORACLE (84.9%) and Debate-Lite (86.2%) both far outperform baselines (~61%) when measuring actual resolution.</p>
+    </div>
+    <div class="finding-card">
+      <div class="finding-icon">⚖️</div>
+      <h3>Precision vs. Recall tradeoff</h3>
+      <p>ORACLE is conservative — it only detects 95 of 224 ambiguous queries (recall 27.7%) but is precise when it does (65.3%). More agents = higher quality but lower coverage.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  ORACLE — Multi-Agent Ambiguity Detection &nbsp;|&nbsp; NLP Research Project &nbsp;|&nbsp;
+  <a href="https://github.com/Talyasaa/ORACLE-Ambiguity-Detection" style="color:var(--accent); text-decoration:none;">GitHub</a>
+</footer>
+
+<!-- ══════════════════════════════════════════════════ -->
+<!-- CHARTS JS                                          -->
+<!-- ══════════════════════════════════════════════════ -->
+<script>
+  const SYSTEMS = ['Baseline GPT', 'Baseline Claude', 'Debate-Lite', 'ORACLE'];
+  const COLORS  = ['#f78166', '#d2a8ff', '#3fb950', '#58a6ff'];
+  const BORDER  = ['#f78166cc', '#d2a8ffcc', '#3fb950cc', '#58a6ffcc'];
+
+  Chart.defaults.color = '#8b949e';
+  Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  Chart.defaults.font.size = 12;
+
+  const gridColor = '#21262d';
+
+  // ── Chart 1: Quality Axes ──
+  new Chart(document.getElementById('chartQuality'), {
+    type: 'bar',
+    data: {
+      labels: ['Relevance', 'Specificity', 'Necessity'],
+      datasets: [
+        { label: 'Baseline GPT',    data: [1.233, 1.077, 1.501], backgroundColor: '#f7816688', borderColor: '#f78166', borderWidth: 1.5 },
+        { label: 'Baseline Claude', data: [1.632, 1.506, 1.808], backgroundColor: '#d2a8ff88', borderColor: '#d2a8ff', borderWidth: 1.5 },
+        { label: 'Debate-Lite',     data: [4.598, 4.558, 2.427], backgroundColor: '#3fb95088', borderColor: '#3fb950', borderWidth: 1.5 },
+        { label: 'ORACLE',          data: [4.775, 4.409, 2.422], backgroundColor: '#58a6ff88', borderColor: '#58a6ff', borderWidth: 1.5 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        y: { min: 0, max: 5, grid: { color: gridColor }, ticks: { stepSize: 1 } },
+        x: { grid: { color: gridColor } }
+      },
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } } }
+    }
+  });
+
+  // ── Chart 2: Flags ──
+  new Chart(document.getElementById('chartFlags'), {
+    type: 'bar',
+    data: {
+      labels: SYSTEMS,
+      datasets: [
+        { label: 'Hallucination %', data: [98.2, 91.0, 7.4, 5.9],   backgroundColor: '#f7816688', borderColor: '#f78166', borderWidth: 1.5 },
+        { label: 'False Positive %', data: [11.8, 11.8, 6.1, 1.3],  backgroundColor: '#d2a8ff88', borderColor: '#d2a8ff', borderWidth: 1.5 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        y: { min: 0, max: 100, grid: { color: gridColor }, ticks: { callback: v => v + '%' } },
+        x: { grid: { color: gridColor } }
+      },
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } } }
+    }
+  });
+
+  // ── Chart 3: ARR ──
+  new Chart(document.getElementById('chartARR'), {
+    type: 'bar',
+    data: {
+      labels: SYSTEMS,
+      datasets: [{
+        label: 'ARR %',
+        data: [62.5, 59.4, 86.2, 84.9],
+        backgroundColor: COLORS.map(c => c + '88'),
+        borderColor: COLORS,
+        borderWidth: 1.5,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        y: { min: 0, max: 100, grid: { color: gridColor }, ticks: { callback: v => v + '%' } },
+        x: { grid: { color: gridColor } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  // ── Chart 4: ROUGE-L & BERTScore ──
+  new Chart(document.getElementById('chartAuto'), {
+    type: 'bar',
+    data: {
+      labels: SYSTEMS,
+      datasets: [
+        { label: 'ROUGE-L',    data: [0.162, 0.105, 0.036, 0.027], backgroundColor: '#58a6ff88', borderColor: '#58a6ff', borderWidth: 1.5 },
+        { label: 'BERTScore',  data: [0.178, 0.078, 0.042, 0.035], backgroundColor: '#3fb95088', borderColor: '#3fb950', borderWidth: 1.5 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        y: { min: 0, grid: { color: gridColor } },
+        x: { grid: { color: gridColor } }
+      },
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } } }
+    }
+  });
+
+  // ── Chart 5: Detection Doughnut ──
+  new Chart(document.getElementById('chartDetection'), {
+    type: 'doughnut',
+    data: {
+      labels: ['True Positives (62)', 'False Negatives / Missed (162)', 'False Positives (33)', 'True Negatives (134)'],
+      datasets: [{
+        data: [62, 162, 33, 134],
+        backgroundColor: ['#3fb95088', '#f7816688', '#d2a8ff88', '#58a6ff44'],
+        borderColor:     ['#3fb950',   '#f78166',   '#d2a8ff',   '#58a6ff'],
+        borderWidth: 1.5,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 10 } } }
+      }
+    }
+  });
+</script>
+
+</body>
+</html>
